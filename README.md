@@ -109,13 +109,11 @@ Runs before key API calls via `src/lib/release-reservation.ts`:
 - `POST /api/reservation`
 - `POST /api/reservation/:id/confirm`
 
-### 2. Vercel Cron (background, optional)
+### 2. Optional cron endpoint
 
-Once per day (02:00 UTC), `GET /api/cron/expire-reservations` releases all expired reservations. Configured in `vercel.json`.
+`GET /api/cron/expire-reservations` can bulk-release expired reservations. **Lazy cleanup** (above) is enough for normal use.
 
-**Vercel Hobby** only allows cron jobs to run **once per day**; more frequent schedules require Pro. **Lazy cleanup** (above) still releases expired stock whenever users load products or reservations.
-
-In production, set `CRON_SECRET`; Vercel sends `Authorization: Bearer <CRON_SECRET>`.
+**Vercel Hobby** restricts cron jobs (once per day only), so this project does not ship a `vercel.json` cron. You can call the endpoint manually or add cron on Pro if needed. Set `CRON_SECRET` if you protect that route.
 
 ## API reference
 

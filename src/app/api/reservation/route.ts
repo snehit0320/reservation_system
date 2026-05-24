@@ -1,17 +1,36 @@
 import { prisma } from "@/lib/prisma";
 import { ReservationStatus } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
-
+import {
+  reservationSchema
+} from "@/lib/validator/reservation";
 export async function POST(
   request: NextRequest
 ) {
   const body = await request.json();
+  const parsed =
+  reservationSchema.safeParse(
+    body
+  );
+
+if (!parsed.success) {
+
+  return NextResponse.json(
+    {
+      error:
+        parsed.error.flatten()
+    },
+    {
+      status: 400
+    }
+  );
+
+}
 
   const {
-    inventoryId,
-    quantity
-  } = body;
-
+  inventoryId,
+  quantity
+} = parsed.data;
   try {
 
   const reservation =

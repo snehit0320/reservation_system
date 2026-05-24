@@ -3,6 +3,7 @@ import { releaseExpiredReservations } from "@/lib/release-reservation";
 import { NextResponse } from "next/server";
 
 export async function GET() {
+  try {
   await releaseExpiredReservations();
 
   const inventories =
@@ -29,4 +30,11 @@ export async function GET() {
   }));
 
   return NextResponse.json(result);
+  } catch (error) {
+    console.error("GET /api/products failed:", error);
+    return NextResponse.json(
+      { error: "Database connection failed" },
+      { status: 500 }
+    );
+  }
 }

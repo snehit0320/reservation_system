@@ -54,10 +54,29 @@ export default function Home() {
   );
 
   const fetchProducts = useCallback(async () => {
-    const response = await fetch("/api/products");
-    const data = await response.json();
-    setProducts(data);
-    setLoading(false);
+    try {
+      const response = await fetch("/api/products");
+      if (!response.ok) {
+        setError(await getApiErrorMessage(response));
+        setProducts([]);
+        return;
+      }
+      const data = await response.json();
+      if (!Array.isArray(data)) {
+        setError("Could not load products. Check server logs.");
+        setProducts([]);
+        return;
+      }
+      setProducts(data);
+      setError(null);
+    } catch {
+      setError(
+        "Could not reach the server. If this is production, check DATABASE_URL on Vercel (use Supabase pooler URL, password @ as %40)."
+      );
+      setProducts([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {

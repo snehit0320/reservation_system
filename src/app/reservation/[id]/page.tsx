@@ -1,7 +1,13 @@
 "use client";
 
+import {
+  Alert,
+  Button,
+  Card,
+  LoadingState,
+  PageShell,
+} from "@/components/ui";
 import { getApiErrorMessage } from "@/lib/api-errors";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { use, useCallback, useEffect, useState } from "react";
 
@@ -14,6 +20,19 @@ interface Reservation {
 }
 
 const TERMINAL_STATUSES = new Set(["CONFIRMED", "RELEASED"]);
+
+function statusColor(status: string) {
+  switch (status) {
+    case "CONFIRMED":
+      return "bg-emerald-100 text-emerald-800";
+    case "RELEASED":
+      return "bg-slate-200 text-slate-700";
+    case "PENDING":
+      return "bg-amber-100 text-amber-800";
+    default:
+      return "bg-slate-100 text-slate-700";
+  }
+}
 
 export default function ReservationPage({
   params,
@@ -58,7 +77,7 @@ export default function ReservationPage({
         new Date(reservation.expiresAt).getTime() - Date.now();
 
       if (diff <= 0) {
-        setTimeLeft("Expired");
+        setTimeLeft("0:00");
         setExpired(true);
         return;
       }
@@ -75,6 +94,16 @@ export default function ReservationPage({
     const timer = setInterval(updateTimer, 1000);
     return () => clearInterval(timer);
   }, [reservation]);
+
+  useEffect(() => {
+    if (!expired || reservation?.status !== "PENDING") return;
+
+    const sync = setTimeout(() => {
+      loadReservation();
+    }, 500);
+
+    return () => clearTimeout(sync);
+  }, [expired, reservation?.status, loadReservation]);
 
   const isPending =
     reservation?.status === "PENDING" && !expired;
@@ -93,6 +122,7 @@ export default function ReservationPage({
         setError(await getApiErrorMessage(response));
         if (response.status === 410) {
           setExpired(true);
+          await loadReservation();
         }
         return;
       }
@@ -132,113 +162,147 @@ export default function ReservationPage({
   }
 
   if (loading) {
-    return <div className="p-8">Loading...</div>;
+    return (
+      <LoadingState
+        label="Loading reservation..."
+        showProductsLink={false}
+      />
+    );
   }
 
   if (!reservation) {
     return (
-      <main className="p-8 max-w-lg mx-auto">
-        <p className="text-red-600 dark:text-red-400">
-          {error ?? "Reservation not found."}
-        </p>
-        <Link
-          href="/"
-          className="mt-4 inline-block text-blue-600 underline"
-        >
-          Back to products
-        </Link>
-      </main>
+      <PageShell title="Reservation" showProductsLink>
+        <Card className="max-w-lg">
+          <Alert>{error ?? "Reservation not found."}</Alert>
+        </Card>
+      </PageShell>
     );
   }
+
+  const showProductsLink = TERMINAL_STATUSES.has(
+    reservation.status
+  );
 
   const actionsDisabled =
     !isPending ||
     actionLoading !== null ||
     TERMINAL_STATUSES.has(reservation.status);
 
+  const releasedByExpiry =
+    reservation.status === "RELEASED" &&
+    new Date(reservation.expiresAt).getTime() < Date.now();
+
   return (
-    <main className="p-8 max-w-lg mx-auto">
-      <h1 className="text-3xl font-bold mb-4">Reservation</h1>
+    <PageShell
+      title="Checkout"
+      subtitle="Confirm your purchase before the timer runs out."
+      showProductsLink={showProductsLink}
+    >
+      <div className="mx-auto max-w-lg">
+        {error && <Alert>{error}</Alert>}
 
-      {error && (
-        <div
-          role="alert"
-          className="mb-4 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200"
-        >
-          {error}
-        </div>
-      )}
+        <Card>
+          <div className="mb-6 flex items-center justify-between">
+            <span
+              className={`rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide ${statusColor(reservation.status)}`}
+            >
+              {reservation.status}
+            </span>
+            {reservation.status === "PENDING" && (
+              <div className="text-right">
+                <p className="text-xs font-medium uppercase tracking-wider text-slate-500">
+                  Expires in
+                </p>
+                <p
+                  className={`font-mono text-3xl font-bold tabular-nums ${
+                    expired || timeLeft === "0:00"
+                      ? "text-red-600"
+                      : "text-[#003153]"
+                  }`}
+                >
+                  {timeLeft}
+                </p>
+              </div>
+            )}
+          </div>
 
-      <dl className="space-y-2 mb-6">
-        <div>
-          <dt className="text-sm text-neutral-500">Reservation ID</dt>
-          <dd className="font-mono">{reservation.id}</dd>
-        </div>
-        <div>
-          <dt className="text-sm text-neutral-500">Quantity</dt>
-          <dd>{reservation.quantity}</dd>
-        </div>
-        <div>
-          <dt className="text-sm text-neutral-500">Status</dt>
-          <dd className="font-semibold">{reservation.status}</dd>
-        </div>
-        <div>
-          <dt className="text-sm text-neutral-500">Expires in</dt>
-          <dd className="text-xl tabular-nums">
-            {reservation.status === "PENDING" ? timeLeft : "—"}
-          </dd>
-        </div>
-      </dl>
+          <dl className="space-y-4 border-t border-slate-100 pt-4">
+            <div>
+              <dt className="text-xs font-medium uppercase tracking-wider text-slate-500">
+                Reservation ID
+              </dt>
+              <dd className="mt-1 break-all font-mono text-sm text-slate-800">
+                {reservation.id}
+              </dd>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <dt className="text-xs font-medium uppercase tracking-wider text-slate-500">
+                  Quantity
+                </dt>
+                <dd className="mt-1 text-2xl font-bold text-slate-900">
+                  {reservation.quantity}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs font-medium uppercase tracking-wider text-slate-500">
+                  Inventory
+                </dt>
+                <dd className="mt-1 truncate font-mono text-xs text-slate-600">
+                  {reservation.inventoryId}
+                </dd>
+              </div>
+            </div>
+          </dl>
 
-      {reservation.status === "CONFIRMED" && (
-        <p className="mb-4 rounded-lg border border-green-300 bg-green-50 px-4 py-3 text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-200">
-          Purchase confirmed. Thank you!
-        </p>
-      )}
+          {reservation.status === "CONFIRMED" && (
+            <Alert variant="success">
+              Purchase confirmed. Thank you!
+            </Alert>
+          )}
 
-      {reservation.status === "RELEASED" && (
-        <p className="mb-4 rounded-lg border border-neutral-300 bg-neutral-50 px-4 py-3 dark:border-neutral-700 dark:bg-neutral-900">
-          Reservation cancelled. Stock has been released.
-        </p>
-      )}
+          {reservation.status === "RELEASED" && !releasedByExpiry && (
+            <Alert variant="info">
+              Reservation cancelled. Stock has been returned to
+              inventory.
+            </Alert>
+          )}
 
-      {expired && reservation.status === "PENDING" && (
-        <p className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
-          This reservation has expired. Confirm purchase is no longer
-          available.
-        </p>
-      )}
+          {releasedByExpiry && (
+            <Alert variant="warning">
+              This reservation expired and stock was released
+              automatically.
+            </Alert>
+          )}
 
-      {isPending && (
-        <div className="flex flex-wrap gap-3">
-          <button
-            type="button"
-            onClick={confirmPurchase}
-            disabled={actionsDisabled}
-            className="bg-green-600 text-white px-4 py-2 rounded disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {actionLoading === "confirm"
-              ? "Confirming..."
-              : "Confirm purchase"}
-          </button>
+          {isPending && (
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+              <Button
+                variant="success"
+                onClick={confirmPurchase}
+                disabled={actionsDisabled}
+                className="flex-1"
+              >
+                {actionLoading === "confirm"
+                  ? "Confirming..."
+                  : "Confirm purchase"}
+              </Button>
 
-          <button
-            type="button"
-            onClick={cancelReservation}
-            disabled={actionsDisabled}
-            className="border border-neutral-300 px-4 py-2 rounded disabled:opacity-50 disabled:cursor-not-allowed dark:border-neutral-600"
-          >
-            {actionLoading === "cancel" ? "Cancelling..." : "Cancel"}
-          </button>
-        </div>
-      )}
-
-      <Link
-        href="/"
-        className="mt-6 inline-block text-blue-600 underline"
-      >
-        Back to products
-      </Link>
-    </main>
+              <Button
+                variant="secondary"
+                onClick={cancelReservation}
+                disabled={actionsDisabled}
+                className="flex-1"
+              >
+                {actionLoading === "cancel"
+                  ? "Cancelling..."
+                  : "Cancel"}
+              </Button>
+            </div>
+          )}
+        </Card>
+      </div>
+    </PageShell>
   );
 }

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { releaseExpiredReservations } from "@/lib/release-reservation";
 import { ReservationStatus } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 import {
@@ -7,6 +8,8 @@ import {
 export async function POST(
   request: NextRequest
 ) {
+  await releaseExpiredReservations();
+
   const body = await request.json();
   const parsed =
   reservationSchema.safeParse(

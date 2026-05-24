@@ -1,3 +1,4 @@
+import { expireReservationIfNeeded } from "@/lib/release-reservation";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
@@ -8,11 +9,10 @@ export async function GET(
   const { id } = await params;
 
   const reservation =
-    await prisma.reservation.findUnique({
-      where: {
-        id
-      }
-    });
+    (await expireReservationIfNeeded(id)) ??
+    (await prisma.reservation.findUnique({
+      where: { id },
+    }));
 
   if (!reservation) {
     return NextResponse.json(
@@ -25,7 +25,5 @@ export async function GET(
     );
   }
 
-  return NextResponse.json(
-    reservation
-  );
+  return NextResponse.json(reservation);
 }

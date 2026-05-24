@@ -1,7 +1,9 @@
 import { prisma } from "@/lib/prisma";
+import { releaseExpiredReservations } from "@/lib/release-reservation";
 import { NextResponse } from "next/server";
 
 export async function GET() {
+  await releaseExpiredReservations();
 
   const inventories =
     await prisma.inventory.findMany({

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { expireReservationIfNeeded } from "@/lib/release-reservation";
 import { ReservationStatus } from "@prisma/client";
 import { NextResponse } from "next/server";
 
@@ -9,11 +10,10 @@ export async function POST(
   const { id } = await params;
 
   const reservation =
-    await prisma.reservation.findUnique({
-      where: {
-        id
-      }
-    });
+    (await expireReservationIfNeeded(id)) ??
+    (await prisma.reservation.findUnique({
+      where: { id },
+    }));
 
   if (!reservation) {
     return NextResponse.json(
@@ -26,8 +26,7 @@ export async function POST(
     );
   }
 
-  // Check expiry
-  if (reservation.expiresAt < new Date()) {
+  if (reservation.status === ReservationStatus.RELEASED) {
     return NextResponse.json(
       {
         error: "Reservation expired"
